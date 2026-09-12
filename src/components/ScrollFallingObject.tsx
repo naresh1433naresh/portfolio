@@ -121,7 +121,7 @@ export default function ScrollFallingObject() {
 
     /* ── Apply ice material, keep model's normal maps ─────── */
     const applyIce = (obj: THREE.Object3D) => {
-      obj.traverse((child) => {
+      obj.traverse((child: any) => {
         if (!(child as THREE.Mesh).isMesh) return;
         const mesh   = child as THREE.Mesh;
         const mats   = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -133,7 +133,7 @@ export default function ScrollFallingObject() {
     /* ── Load GLTF (fallback: procedural icosahedron rock) ─── */
     new GLTFLoader().load(
       MODEL_PATH,
-      (gltf) => {
+      (gltf: any) => {
         const obj = gltf.scene;
         normalizeObj(obj);
         applyIce(obj);

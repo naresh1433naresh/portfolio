@@ -48,7 +48,7 @@ export default function ThreeRoomHero() {
 
     new RGBELoader().load(
       HDR_URL,
-      (hdr) => {
+      (hdr: any) => {
         hdr.mapping    = THREE.EquirectangularReflectionMapping;
         scene.background  = hdr;   // scrolls as camera orbits → immersive room feel
         scene.environment = hdr;   // drives reflections on chrome knot

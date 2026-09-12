@@ -143,7 +143,7 @@ export default function Projects() {
                       style={{
                         flex: 1, display: 'inline-flex', alignItems: 'center',
                         justifyContent: 'center', gap: '0.4rem',
-                        fontSize: '0.82rem', padding: '0.55rem 0.75rem',
+                        padding: '0.55rem 0.75rem',
                         background: 'rgba(255,255,255,0.02)',
                         border: '1px solid var(--border)',
                         borderRadius: 8,
