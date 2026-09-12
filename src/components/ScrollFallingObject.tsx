@@ -379,6 +379,17 @@ export default function ScrollFallingObject() {
       <style>{`
         /* Ensure transparent canvas composites correctly */
         #sfo-progress-bar { transition: width 0.15s ease; }
+        @media (max-width: 768px) {
+          .cap-inner {
+            max-width: 160px !important;
+          }
+          .cap-inner > div:nth-child(2) {
+            font-size: 0.8rem !important;
+          }
+          .cap-inner > div:nth-child(3) {
+            font-size: 0.65rem !important;
+          }
+        }
       `}</style>
     </section>
   );

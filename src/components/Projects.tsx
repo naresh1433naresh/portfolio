@@ -33,7 +33,7 @@ export default function Projects() {
         </div>
 
         {/* Cards */}
-        <div style={{
+        <div className="projects-grid" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
           gap: '1.25rem',
@@ -161,6 +161,14 @@ export default function Projects() {
           })}
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 540px) {
+          .projects-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }

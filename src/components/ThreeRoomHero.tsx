@@ -175,6 +175,7 @@ export default function ThreeRoomHero() {
       >
         <div
           ref={overlayRef}
+          className="hero-grid"
           style={{
             textAlign: 'left',
             transformStyle: 'preserve-3d',
@@ -386,7 +387,7 @@ export default function ThreeRoomHero() {
             justifyContent: 'center',
             flexShrink: 0,
           }}>
-            <div style={{
+            <div className="hero-profile-container" style={{
               position: 'relative',
               borderRadius: 16,
               overflow: 'hidden',
@@ -445,6 +446,19 @@ export default function ThreeRoomHero() {
         <span>move cursor — explore</span>
         <div style={{ width: 1, height: 32, background: 'linear-gradient(to bottom, rgba(99,102,241,0.5), transparent)' }} />
       </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .hero-grid {
+            flex-direction: column !important;
+            gap: 2rem !important;
+            padding-top: 4rem !important;
+          }
+          .hero-profile-container {
+            width: 220px !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }

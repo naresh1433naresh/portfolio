@@ -72,7 +72,7 @@ export default function TechStack() {
         </div>
 
         {/* Tech Cards Grid */}
-        <div style={{
+        <div className="tech-grid" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
           gap: '1rem',
@@ -131,6 +131,14 @@ export default function TechStack() {
             ))}
         </div>
       </div>
+
+      <style>{`
+        @media (max-width: 400px) {
+          .tech-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }
