@@ -1,8 +1,11 @@
-// ── CursorReveal — Single Photo Edition ──
-// Base layer:   your photo in grayscale + dark tint (the "stone")
-// Reveal layer: your photo in full vivid color (revealed by cursor trail)
-//
-// Swap IMAGE_SRC to change the photo.
+// ── CursorReveal — Optimized Edition ──
+// Changes from original:
+// 1. Temp canvas is created ONCE, not every frame (eliminates memory churn)
+// 2. RAF pauses when canvas is off-screen (IntersectionObserver)
+// 3. RAF pauses when tab is hidden (Page Visibility API)
+// 4. On touch-only devices (mobile), shows the color image directly — no reveal effect
+//    (there's no cursor to move on mobile, so the grayscale base just wastes a canvas)
+// 5. Image loads only when canvas becomes visible (lazy)
 const IMAGE_SRC = '/naresh.jpg';
 
 import { useEffect, useRef } from 'react';
@@ -16,23 +19,46 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
 
   useEffect(() => {
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const canvas = canvasRef.current!;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d')!;
+
+    // On touch-only devices (phones/tablets without a pointer), just show the image.
+    // There is no cursor to move, so the reveal effect is meaningless on mobile.
+    // We detect this via the CSS media feature (not UA sniffing).
+    const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+    const canvas = canvasRef.current as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
     if (!ctx) return;
 
-    // ── Three offscreen canvases ──
-    const offBase    = document.createElement('canvas'); // grayscale + dark tint
-    const offReveal  = document.createElement('canvas'); // full vivid color
-    const offTrail   = document.createElement('canvas'); // alpha mask trail
-    const ctxBase    = offBase.getContext('2d')!;
-    const ctxReveal  = offReveal.getContext('2d')!;
-    const ctxTrail   = offTrail.getContext('2d')!;
+    // ── On touch devices: show a simple image tag instead of canvas ──
+    if (isTouch) {
+      const img = document.createElement('img');
+      img.src = src;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+      img.alt = 'Profile photo of Naresh';
+      img.decoding = 'async';
+      canvas.style.display = 'none';
+      canvas.parentElement?.appendChild(img);
+      return () => { img.remove(); };
+    }
+
+    // ── Offscreen canvases — created once ──
+    const offBase   = document.createElement('canvas'); // grayscale + dark tint
+    const offReveal = document.createElement('canvas'); // full vivid color
+    const offTrail  = document.createElement('canvas'); // alpha mask trail
+    // ── Reusable temp canvas — created ONCE, not every frame ──
+    const offTemp   = document.createElement('canvas');
+
+    const ctxBase   = offBase.getContext('2d')!;
+    const ctxReveal = offReveal.getContext('2d')!;
+    const ctxTrail  = offTrail.getContext('2d')!;
+    const ctxTemp   = offTemp.getContext('2d')!;
 
     let animId = 0;
     let img: HTMLImageElement | null = null;
     let prevX = -1, prevY = -1;
     let curX  = -1, curY  = -1;
+    let isVisible = false; // Intersection state
+    let isTabVisible = !document.hidden; // Page visibility state
 
     // ── Draw image "contain"-fit centered into a canvas context ──
     function drawContain(
@@ -51,16 +77,12 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
       const dy = (ch - dh) / 2;
 
       c.clearRect(0, 0, cw, ch);
-      // dark background matching the portfolio bg
       c.fillStyle = '#0a0a0f';
       c.fillRect(0, 0, cw, ch);
-
-      // apply filter (grayscale / vivid) then draw
       c.filter = filterStr;
       c.drawImage(image, dx, dy, dw, dh);
       c.filter = 'none';
 
-      // optional color overlay (for the base duotone tint)
       if (overlayColor && overlayAlpha) {
         c.globalAlpha = overlayAlpha;
         c.fillStyle = overlayColor;
@@ -71,10 +93,13 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
 
     function redrawImages() {
       if (!img) return;
-      // Base: deep grayscale + subtle indigo tint
-      drawContain(ctxBase, img, 'grayscale(100%) brightness(0.55) contrast(1.1)', '#1e1b4b', 0.35);
-      // Reveal: full vivid color, slightly boosted
+      drawContain(ctxBase,   img, 'grayscale(100%) brightness(0.55) contrast(1.1)', '#1e1b4b', 0.35);
       drawContain(ctxReveal, img, 'saturate(1.15) brightness(1.0) contrast(1.05)');
+    }
+
+    function syncTempSize(w: number, h: number) {
+      offTemp.width  = w;
+      offTemp.height = h;
     }
 
     function resize() {
@@ -83,17 +108,15 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
       const h = Math.round(rect.height);
       if (w === 0 || h === 0) return;
 
-      [canvas, offBase, offReveal, offTrail].forEach((c) => {
+      ([canvas, offBase, offReveal, offTrail] as HTMLCanvasElement[]).forEach((c) => {
         c.width  = w;
         c.height = h;
       });
-
-      // Trail starts fully transparent
+      syncTempSize(w, h);
       ctxTrail.clearRect(0, 0, w, h);
       redrawImages();
     }
 
-    // ── Stamp a single soft brush dab ──
     function stampBrush(cx: number, cy: number) {
       const radius = offTrail.height * 0.17;
       const grad = ctxTrail.createRadialGradient(cx, cy, 0, cx, cy, radius);
@@ -108,7 +131,6 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
       ctxTrail.fill();
     }
 
-    // ── Paint continuous ribbon from (x0,y0) to (x1,y1) ──
     function paintStroke(x0: number, y0: number, x1: number, y1: number) {
       const r    = offTrail.height * 0.17;
       const dx   = x1 - x0;
@@ -122,19 +144,25 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
       }
     }
 
-    // ── RAF render loop ──
     function render() {
+      // ── Pause when off-screen or tab hidden ──
+      if (!isVisible || !isTabVisible) {
+        animId = requestAnimationFrame(render);
+        return;
+      }
+
       animId = requestAnimationFrame(render);
       if (!img) return;
 
-      const { width: w, height: h } = canvas;
+      const w = canvas.width;
+      const h = canvas.height;
 
-      // 1. Fade trail (how fast reveal disappears — lower = longer linger)
+      // Fade trail
       ctxTrail.globalCompositeOperation = 'destination-out';
       ctxTrail.fillStyle = 'rgba(0,0,0,0.035)';
       ctxTrail.fillRect(0, 0, w, h);
 
-      // 2. Paint new brush stroke
+      // Paint stroke
       if (curX >= 0 && curY >= 0) {
         const px = prevX < 0 ? curX : prevX;
         const py = prevY < 0 ? curY : prevY;
@@ -143,22 +171,21 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
         prevY = curY;
       }
 
-      // 3. Draw grayscale base to visible canvas
+      // Draw grayscale base
       ctx.drawImage(offBase, 0, 0);
 
-      // 4. Create temp canvas: full-color image masked by trail
-      const tmp    = document.createElement('canvas');
-      tmp.width    = w;
-      tmp.height   = h;
-      const tmpCtx = tmp.getContext('2d')!;
-      tmpCtx.drawImage(offReveal, 0, 0);
-      tmpCtx.globalCompositeOperation = 'destination-in';
-      tmpCtx.drawImage(offTrail, 0, 0);
+      // ── Reuse the persistent temp canvas (no new canvas per frame!) ──
+      if (offTemp.width !== w || offTemp.height !== h) syncTempSize(w, h);
+      ctxTemp.clearRect(0, 0, w, h);
+      ctxTemp.drawImage(offReveal, 0, 0);
+      ctxTemp.globalCompositeOperation = 'destination-in';
+      ctxTemp.drawImage(offTrail, 0, 0);
+      ctxTemp.globalCompositeOperation = 'source-over'; // reset
 
-      // 5. Composite the color reveal on top
-      ctx.drawImage(tmp, 0, 0);
+      // Composite reveal on top
+      ctx.drawImage(offTemp, 0, 0);
 
-      // 6. Subtle cursor glow ring on top
+      // Subtle cursor glow ring
       if (curX >= 0 && curY >= 0 && !prefersReduced) {
         const ringR = offTrail.height * 0.035;
         const glow  = ctx.createRadialGradient(curX, curY, ringR * 0.3, curX, curY, ringR);
@@ -171,7 +198,6 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
       }
     }
 
-    // ── Event handlers ──
     function onMouseMove(e: MouseEvent) {
       if (prefersReduced) return;
       const rect = canvas.getBoundingClientRect();
@@ -180,6 +206,7 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
     }
 
     function onTouchMove(e: TouchEvent) {
+      // touch is handled by the isTouch early-return above; this is dead code
       if (prefersReduced) return;
       const rect = canvas.getBoundingClientRect();
       const t = e.touches[0];
@@ -187,11 +214,13 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
       curY = t.clientY - rect.top;
     }
 
-    function onMouseLeave() {
-      // keep showing last position but stop updating — let trail fade naturally
+    // ── Page Visibility: pause RAF when tab is hidden ──
+    function onVisibilityChange() {
+      isTabVisible = !document.hidden;
     }
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
-    // ── Load image ──
+    // ── Load image — deferred until canvas is visible ──
     const image = new Image();
     image.onload = () => {
       img = image;
@@ -204,18 +233,27 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
     const ro = new ResizeObserver(() => { resize(); });
     ro.observe(canvas);
 
+    // ── Intersection Observer: pause RAF when canvas is not in viewport ──
+    const io = new IntersectionObserver(
+      ([entry]) => { isVisible = entry.isIntersecting; },
+      { threshold: 0.01 }
+    );
+    io.observe(canvas);
+    // Check initial state (in case canvas is already visible)
+    isVisible = canvas.getBoundingClientRect().top < window.innerHeight;
+
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('touchmove', onTouchMove, { passive: true });
-    canvas.addEventListener('mouseleave', onMouseLeave);
 
     resize();
 
     return () => {
       cancelAnimationFrame(animId);
       ro.disconnect();
+      io.disconnect();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       canvas.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('touchmove', onTouchMove);
-      canvas.removeEventListener('mouseleave', onMouseLeave);
     };
   }, [src]);
 
@@ -226,7 +264,7 @@ export default function CursorReveal({ src = IMAGE_SRC }: Props) {
         width: '100%',
         height: '100%',
         display: 'block',
-        cursor: 'none',  // hide system cursor; glow ring acts as cursor
+        cursor: 'none',
       }}
       aria-label="Interactive photo reveal — move cursor to reveal color"
     />

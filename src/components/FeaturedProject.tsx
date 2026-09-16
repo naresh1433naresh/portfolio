@@ -64,7 +64,7 @@ export default function FeaturedProject() {
         </div>
 
         {/* Main grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,0.8fr)', gap: '2rem' }}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,0.8fr)', gap: 'clamp(1.5rem, 3vw, 2rem)' }}
           className="featured-grid">
 
           {/* Left: Info */}
@@ -189,6 +189,10 @@ export default function FeaturedProject() {
       <style>{`
         @media (max-width: 900px) {
           .featured-grid { grid-template-columns: 1fr !important; }
+          .problem-solution-grid { grid-template-columns: 1fr !important; }
+        }
+        /* On very small screens also force single column for problem/solution */
+        @media (max-width: 480px) {
           .problem-solution-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>

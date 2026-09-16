@@ -35,7 +35,8 @@ export default function Projects() {
         {/* Cards */}
         <div className="projects-grid" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          /* min(300px, 100%) prevents overflow on 320px screens */
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))',
           gap: '1.25rem',
         }}>
           {projects.map((project, i) => {
@@ -165,6 +166,7 @@ export default function Projects() {
       <style>{`
         @media (max-width: 540px) {
           .projects-grid {
+            /* Already handled by minmax(min(300px,100%),1fr) — this is kept as fallback */
             grid-template-columns: 1fr !important;
           }
         }

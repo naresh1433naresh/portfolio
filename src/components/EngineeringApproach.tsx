@@ -26,7 +26,7 @@ export default function EngineeringApproach() {
           </p>
         </div>
 
-        {/* Steps */}
+        {/* Steps — 5 columns on desktop, 2 on tablet, 1 on mobile */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(5, 1fr)',
@@ -98,10 +98,14 @@ export default function EngineeringApproach() {
       </div>
 
       <style>{`
-        @media (max-width: 900px) {
+        /* 5 columns only on wide screens where there's sufficient space */
+        @media (max-width: 1100px) {
+          .steps-grid { grid-template-columns: repeat(3, 1fr) !important; }
+        }
+        @media (max-width: 768px) {
           .steps-grid { grid-template-columns: 1fr 1fr !important; }
         }
-        @media (max-width: 540px) {
+        @media (max-width: 480px) {
           .steps-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>

@@ -7,7 +7,7 @@ export default function About() {
   return (
     <section id="about" className="section-padding" style={{ position: 'relative' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 1.5rem' }}>
-        <div ref={ref} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '5rem', alignItems: 'start' }}
+        <div ref={ref} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 'clamp(2rem, 5vw, 5rem)', alignItems: 'start' }}
           className="about-grid"
         >
           {/* Left */}
@@ -127,7 +127,7 @@ export default function About() {
 
       <style>{`
         @media (max-width: 768px) {
-          .about-grid { grid-template-columns: 1fr !important; gap: 3rem !important; }
+          .about-grid { grid-template-columns: 1fr !important; gap: clamp(1.5rem, 4vw, 3rem) !important; }
         }
       `}</style>
     </section>

@@ -18,7 +18,7 @@ export default function SystemDesign() {
     <section id="system-design" className="section-padding" style={{ position: 'relative' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 1.5rem' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5rem', alignItems: 'center' }}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 'clamp(2rem, 5vw, 5rem)', alignItems: 'center' }}
           className="sd-grid">
 
           {/* Left: Text */}

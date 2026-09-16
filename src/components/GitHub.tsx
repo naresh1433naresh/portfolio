@@ -1,4 +1,5 @@
-import { Github, Star, GitFork } from 'lucide-react';
+import { useMemo } from 'react';
+import { Github, Star } from 'lucide-react';
 import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 import { personal, githubRepos } from '../data/portfolio';
 
@@ -11,6 +12,15 @@ const langColors: Record<string, string> = {
 
 export default function GitHubSection() {
   const { ref, isVisible } = useIntersectionObserver();
+
+  // Memoize the random contribution grid — prevents new random values on every re-render
+  const contributionCells = useMemo(() =>
+    Array.from({ length: 140 }).map(() => {
+      const intensity = Math.random();
+      return intensity > 0.7 ? 0.8 : intensity > 0.4 ? 0.4 : intensity > 0.2 ? 0.2 : 0.06;
+    }),
+    [] // empty deps = computed once
+  );
 
   return (
     <section id="github" className="section-padding" style={{ position: 'relative' }}>
@@ -43,7 +53,8 @@ export default function GitHubSection() {
         {/* Repos */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          /* min(300px, 100%) ensures cards never overflow their container on 320px screens */
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))',
           gap: '1rem',
           marginBottom: '3rem',
         }}>
@@ -117,16 +128,12 @@ export default function GitHubSection() {
             display: 'flex', justifyContent: 'center', gap: '3px', flexWrap: 'wrap',
             maxWidth: 600, margin: '0 auto',
           }}>
-            {Array.from({ length: 140 }).map((_, i) => {
-              const intensity = Math.random();
-              const opacity = intensity > 0.7 ? 0.8 : intensity > 0.4 ? 0.4 : intensity > 0.2 ? 0.2 : 0.06;
-              return (
-                <div key={i} style={{
-                  width: 11, height: 11, borderRadius: 2,
-                  background: `rgba(99,102,241,${opacity})`,
-                }} />
-              );
-            })}
+            {contributionCells.map((opacity, i) => (
+              <div key={i} style={{
+                width: 11, height: 11, borderRadius: 2,
+                background: `rgba(99,102,241,${opacity})`,
+              }} />
+            ))}
           </div>
           <p style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>
             Replace with GitHub Contribution Graph embed

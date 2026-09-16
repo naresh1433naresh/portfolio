@@ -14,8 +14,8 @@ export default function ProblemSolving() {
           <div className={`section-label reveal ${isVisible ? 'visible' : ''}`} style={{ marginBottom: '1rem' }}>
             Problem Solving
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'center' }}
-            className="ps-header-grid">
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 'clamp(1.5rem, 3vw, 3rem)', alignItems: 'center' }}
+              className="ps-header-grid">
             <div>
               <h2 className={`reveal reveal-delay-1 ${isVisible ? 'visible' : ''}`} style={{
                 fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)',
@@ -69,7 +69,8 @@ export default function ProblemSolving() {
         {/* DSA Topic Cards */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+          /* min(160px, 100%) prevents overflow on very narrow screens */
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(160px, 100%), 1fr))',
           gap: '0.875rem',
           marginBottom: '2.5rem',
         }}>

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cursor Reveal Portrait</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      background: #08080e;
+      background-image:
+        radial-gradient(ellipse 60% 50% at 30% 50%, rgba(99,102,241,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 60% at 70% 50%, rgba(129,140,248,0.05) 0%, transparent 70%);
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+      overflow: hidden;
+      cursor: none;
+    }
+
+    .eyebrow {
+      font-size: 0.65rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(129,140,248,0.55);
+      user-select: none;
+    }
+
+    #scene {
+      perspective: 1500px;
+      perspective-origin: 50% 50%;
+    }
+
+    #frame {
+      position: relative;
+      width: min(380px, 80vw);
+      aspect-ratio: 3 / 4;
+      transform-style: preserve-3d;
+      will-change: transform;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.06),
+        0 20px 60px rgba(0,0,0,0.7),
+        0 4px 16px rgba(0,0,0,0.5);
+    }
+
+    canvas#cv {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: none;
+    }
+
+    #frame::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(8,8,14,0.55) 0%, transparent 45%);
+      pointer-events: none;
+      border-radius: inherit;
+    }
+
+    .hint {
+      position: absolute;
+      bottom: 1.1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.55rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 2;
+    }
+
+    .corner {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(99,102,241,0.7);
+      box-shadow: 0 0 8px rgba(99,102,241,0.9);
+      pointer-events: none;
+      z-index: 2;
+    }
+    .corner.tl { top: 1rem; left: 1rem; }
+    .corner.tr { top: 1rem; right: 1rem; }
+
+    #cursor-dot {
+      position: fixed;
+      top: 0; left: 0;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgba(129,140,248,0.85);
+      box-shadow: 0 0 12px rgba(129,140,248,0.6);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+      transition: opacity 0.3s ease;
+      mix-blend-mode: screen;
+    }
+
+    .caption {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.12em;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="cursor-dot"></div>
+
+  <span class="eyebrow">move cursor to reveal</span>
+
+  <div id="scene">
+    <div id="frame">
+      <canvas id="cv"></canvas>
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <span class="hint">explore ✦</span>
+    </div>
+  </div>
+
+  <span class="caption">canvas 2d · cursor reveal · 3d tilt</span>
+
+  <script>
+    'use strict';
+
+    /* ── Image paths — swap these to your own portraits ─────────────────── */
+    const IMG_BASE   = 'https://lukewebdesign.com/samples/faceClean.png';
+    const IMG_REVEAL = 'https://lukewebdesign.com/samples/faceCleanmasked.png';
+    /* ──────────────────────────────────────────────────────────────────── */
+
+    /* ── Tuning knobs ── */
+    const FADE_ALPHA  = 0.045;  // per-frame trail decay (lower = longer linger)
+    const BRUSH_RATIO = 0.17;   // brush radius as fraction of canvas height
+    const TILT_MAX    = 7;      // max 3D tilt in degrees
+    const TILT_EASE   = 0.065;  // easing factor (lower = more lag / floatier)
+
+    /* ── prefers-reduced-motion ── */
+    const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* ── Element refs ── */
+    const cv    = document.getElementById('cv');
+    const ctx   = cv.getContext('2d');
+    const frame = document.getElementById('frame');
+    const dot   = document.getElementById('cursor-dot');
+
+    /* ── Offscreen canvases — all allocated ONCE at startup ── */
+    const offBase   = document.createElement('canvas'); // always-visible base portrait
+    const offReveal = document.createElement('canvas'); // portrait revealed through trail
+    const offTrail  = document.createElement('canvas'); // alpha mask trail buffer
+    const offTemp   = document.createElement('canvas'); // reusable composite temp (no per-frame alloc)
+
+    const ctxBase   = offBase.getContext('2d');
+    const ctxReveal = offReveal.getContext('2d');
+    const ctxTrail  = offTrail.getContext('2d');
+    const ctxTemp   = offTemp.getContext('2d');
+
+    /* ── State ── */
+    let imgBase = null, imgReveal = null, loadedCount = 0;
+    let prevX = -1, prevY = -1;
+    let curX  = -1, curY  = -1;
+    let tiltX = 0,  tiltY = 0;        // eased tilt (degrees)
+    let targetTiltX = 0, targetTiltY = 0;
+    let isInside = false;
+    let animId = 0;
+
+    /* ═══════════════════════════════════════════════════════════════════
+       COVER-FIT DRAW
+       Scale `image` so it fully covers the canvas (CSS background-size: cover
+       equivalent). Larger dimension is cropped, smaller fills edge-to-edge.
+    ═══════════════════════════════════════════════════════════════════ */
+    function drawCover(c, image) {
+      const cw = c.canvas.width;
+      const ch = c.canvas.height;
+      const ir = image.naturalWidth / image.naturalHeight;
+      const cr = cw / ch;
+      let dw, dh, dx, dy;
+
+      if (ir > cr) {
+        // Image proportionally wider than canvas → fill height, crop sides
+        dh = ch;  dw = ch * ir;
+        dx = (cw - dw) / 2;  dy = 0;
+      } else {
+        // Image proportionally taller than canvas → fill width, crop top/bottom
+        dw = cw;  dh = cw / ir;
+        dx = 0;  dy = (ch - dh) / 2;
+      }
+
+      c.clearRect(0, 0, cw, ch);
+      c.drawImage(image, dx, dy, dw, dh);
+    }
+
+    function redrawPortraits() {
+      if (imgBase)   drawCover(ctxBase,   imgBase);
+      if (imgReveal) drawCover(ctxReveal, imgReveal);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       RESIZE
+       Sync all canvases to the physical pixel size of the frame element.
+       Trail cleared to fully transparent on every resize.
+    ═══════════════════════════════════════════════════════════════════ */
+    function resize() {
+      const W = Math.round(frame.clientWidth  * devicePixelRatio);
+      const H = Math.round(frame.clientHeight * devicePixelRatio);
+      if (W === 0 || H === 0) return;
+
+      [cv, offBase, offReveal, offTrail, offTemp].forEach(c => {
+        c.width  = W;
+        c.height = H;
+      });
+
+      // Trail starts fully transparent — clearing a canvas gives alpha = 0
+      ctxTrail.clearRect(0, 0, W, H);
+
+      redrawPortraits();
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       STAMP ONE DAB
+       A single radial-gradient circle on the trail canvas.
+       Hard center → soft feathered edge ensures seamless dab overlap.
+    ═══════════════════════════════════════════════════════════════════ */
+    function stampDab(x, y) {
+      const r = offTrail.height * BRUSH_RATIO;
+      const g = ctxTrail.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0,    'rgba(255,255,255,1)');
+      g.addColorStop(0.42, 'rgba(255,255,255,0.88)');
+      g.addColorStop(0.72, 'rgba(255,255,255,0.28)');
+      g.addColorStop(1,    'rgba(255,255,255,0)');
+      ctxTrail.globalCompositeOperation = 'source-over';
+      ctxTrail.fillStyle = g;
+      ctxTrail.beginPath();
+      ctxTrail.arc(x, y, r, 0, Math.PI * 2);
+      ctxTrail.fill();
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       CONTINUOUS RIBBON STROKE
+       Stamp dabs at r/3 intervals along the segment (x0,y0)→(x1,y1)
+       so the trail reads as one smooth unbroken ribbon at any speed.
+    ═══════════════════════════════════════════════════════════════════ */
+    function paintStroke(x0, y0, x1, y1) {
+      const r    = offTrail.height * BRUSH_RATIO;
+      const step = r / 3;
+      const dx   = x1 - x0;
+      const dy   = y1 - y0;
+      const dist = Math.hypot(dx, dy);
+      const n    = Math.max(1, Math.ceil(dist / step));
+
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        stampDab(x0 + dx * t, y0 + dy * t);
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       RENDER LOOP
+    ═══════════════════════════════════════════════════════════════════ */
+    function render() {
+      animId = requestAnimationFrame(render);
+      if (!imgBase && !imgReveal) return;
+
+      const W = cv.width;
+      const H = cv.height;
+
+      /* 1. Ease 3D tilt toward cursor-driven target */
+      tiltX += (targetTiltX - tiltX) * TILT_EASE;
+      tiltY += (targetTiltY - tiltY) * TILT_EASE;
+      frame.style.transform =
+        `rotateX(${tiltX.toFixed(3)}deg) rotateY(${tiltY.toFixed(3)}deg)`;
+
+      /* 2. Fade trail toward transparent (destination-out fill) */
+      ctxTrail.globalCompositeOperation = 'destination-out';
+      ctxTrail.fillStyle = `rgba(0,0,0,${FADE_ALPHA})`;
+      ctxTrail.fillRect(0, 0, W, H);
+
+      /* 3. Paint new stroke segment when cursor is active inside the canvas */
+      if (isInside && curX >= 0 && curY >= 0) {
+        const px = prevX < 0 ? curX : prevX;
+        const py = prevY < 0 ? curY : prevY;
+        paintStroke(px, py, curX, curY);
+        prevX = curX;
+        prevY = curY;
+      }
+
+      /* 4. Composite to visible canvas
+           Layer order:
+             a) Base portrait — always fully visible
+             b) Reveal portrait — masked to the trail shape — composited on top
+      */
+
+      // a. Base portrait
+      ctx.drawImage(offBase, 0, 0);
+
+      // b. Build masked reveal on the persistent temp canvas
+      //    Sync dimensions if a resize happened mid-frame
+      if (offTemp.width !== W || offTemp.height !== H) {
+        offTemp.width  = W;
+        offTemp.height = H;
+      }
+      ctxTemp.clearRect(0, 0, W, H);
+      ctxTemp.drawImage(offReveal, 0, 0);           // full reveal portrait
+      ctxTemp.globalCompositeOperation = 'destination-in';
+      ctxTemp.drawImage(offTrail, 0, 0);            // cut to trail alpha mask
+      ctxTemp.globalCompositeOperation = 'source-over'; // reset for next frame
+
+      // Composite masked reveal over base
+      ctx.drawImage(offTemp, 0, 0);
+    }
+
+    /* ── Reduced-motion: draw base portrait statically, no animation ── */
+    function renderStatic() {
+      if (!imgBase) return;
+      drawCover(ctxBase, imgBase);
+      ctx.drawImage(offBase, 0, 0);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       MOUSE / POINTER TRACKING
+    ═══════════════════════════════════════════════════════════════════ */
+    function onMouseMove(e) {
+      dot.style.left = e.clientX + 'px';
+      dot.style.top  = e.clientY + 'px';
+
+      if (REDUCED) return;
+
+      // Translate client coords → canvas physical pixels
+      const rect  = cv.getBoundingClientRect();
+      const scaleX = cv.width  / rect.width;
+      const scaleY = cv.height / rect.height;
+      curX = (e.clientX - rect.left) * scaleX;
+      curY = (e.clientY - rect.top)  * scaleY;
+
+      // Tilt: normalize cursor to -1..+1 across viewport
+      const nx = (e.clientX / innerWidth  - 0.5) * 2;  // -1=left,  +1=right
+      const ny = (e.clientY / innerHeight - 0.5) * 2;  // -1=top,   +1=bottom
+      targetTiltY =  nx * TILT_MAX;   // cursor right → tilt card right (+rotateY)
+      targetTiltX = -ny * TILT_MAX;   // cursor down  → tilt card back  (-rotateX)
+    }
+
+    function onEnter() { isInside = true;  dot.style.opacity = '1'; }
+    function onLeave() {
+      isInside = false;
+      prevX = -1; prevY = -1;        // fresh start on next entry
+      dot.style.opacity = '0';
+      targetTiltX = 0; targetTiltY = 0; // ease back to flat
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       IMAGE LOADING
+    ═══════════════════════════════════════════════════════════════════ */
+    function onBothDone() {
+      resize();
+      if (REDUCED) { renderStatic(); return; }
+      cancelAnimationFrame(animId);
+      animId = requestAnimationFrame(render);
+    }
+
+    function loadImg(src, isBase) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (isBase) imgBase = img; else imgReveal = img;
+        if (++loadedCount >= 2) onBothDone();
+      };
+      img.onerror = () => {
+        console.warn('Image load failed:', src);
+        if (++loadedCount >= 2) onBothDone();
+      };
+      img.src = src;
+    }
+
+    loadImg(IMG_BASE,   true);
+    loadImg(IMG_REVEAL, false);
+
+    /* ── Events ── */
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    cv.addEventListener('mouseenter', onEnter);
+    cv.addEventListener('mouseleave', onLeave);
+
+    /* ── ResizeObserver: reacts if frame changes size ── */
+    new ResizeObserver(resize).observe(frame);
+
+    /* ── Initial size pass ── */
+    resize();
+  </script>
+</body>
+</html>

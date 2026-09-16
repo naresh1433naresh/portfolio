@@ -29,6 +29,21 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // Close mobile nav on Escape key
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileOpen) setMobileOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen]);
+
+  // Prevent body scroll when mobile nav is open
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
   const handleNav = (href: string) => {
     setMobileOpen(false);
     const el = document.querySelector(href);
@@ -43,7 +58,7 @@ export default function Navbar() {
           top: hidden ? '-80px' : '0',
           left: 0,
           right: 0,
-          zIndex: 50,
+          zIndex: 100, /* Above Three.js canvases */
           transition: 'top 0.35s ease, background 0.35s ease, box-shadow 0.35s ease',
           background: scrolled
             ? 'rgba(10,10,15,0.88)'
@@ -58,7 +73,7 @@ export default function Navbar() {
           style={{
             maxWidth: '1200px',
             margin: '0 auto',
-            padding: '0 1.5rem',
+            padding: '0 clamp(1rem, 4vw, 1.5rem)',
             height: '64px',
             display: 'flex',
             alignItems: 'center',
@@ -72,13 +87,14 @@ export default function Navbar() {
             style={{
               fontFamily: "'JetBrains Mono', monospace",
               fontWeight: 700,
-              fontSize: '1.1rem',
+              fontSize: 'clamp(0.9rem, 2.5vw, 1.1rem)',
               color: 'var(--text-primary)',
               textDecoration: 'none',
               letterSpacing: '0.05em',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
+              flexShrink: 0,
             }}
           >
             <span style={{
@@ -87,12 +103,13 @@ export default function Navbar() {
               borderRadius: 8,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '0.9rem', fontWeight: 800, color: 'white',
+              flexShrink: 0,
             }}>N</span>
-            {personal.name}
+            <span className="hidden md:inline">{personal.name}</span>
           </a>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex" style={{ gap: '2rem', alignItems: 'center' }}>
+          <div className="hidden md:flex" style={{ gap: 'clamp(1rem, 2.5vw, 2rem)', alignItems: 'center' }}>
             {navLinks.map((l) => (
               <a
                 key={l.href}
@@ -105,21 +122,26 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Mobile Hamburger */}
+          {/* Mobile Hamburger — min 44px touch target */}
           <button
             className="flex md:hidden"
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((o) => !o)}
             style={{
               background: 'none',
               border: '1px solid var(--border)',
               borderRadius: 8,
-              padding: '0.4rem',
+              padding: '0.5rem',
               cursor: 'pointer',
               color: 'var(--text-primary)',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               transition: 'border-color 0.2s',
+              /* Minimum touch target: 44×44px */
+              minWidth: '44px',
+              minHeight: '44px',
             }}
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -127,8 +149,8 @@ export default function Navbar() {
         </nav>
       </header>
 
-      {/* Mobile Nav Overlay */}
-      <div className={`mobile-nav ${mobileOpen ? 'open' : 'closed'}`}>
+      {/* Mobile Nav Overlay — z-index: 200 (above header + Three.js canvas) */}
+      <div className={`mobile-nav ${mobileOpen ? 'open' : 'closed'}`} role="dialog" aria-modal="true" aria-label="Navigation menu">
         <button
           aria-label="Close menu"
           onClick={() => setMobileOpen(false)}
@@ -136,6 +158,8 @@ export default function Navbar() {
             position: 'absolute', top: '1.25rem', right: '1.5rem',
             background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--text-secondary)',
+            minWidth: '44px', minHeight: '44px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
           <X size={24} />

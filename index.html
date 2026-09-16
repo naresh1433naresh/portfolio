@@ -16,10 +16,18 @@
     <meta property="og:description" content="Building intelligent systems and scalable software." />
     <meta property="og:type" content="website" />
 
-    <!-- Google Fonts -->
+    <!-- DNS prefetch for external resources -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+    <link rel="dns-prefetch" href="https://dl.polyhaven.org" />
+
+    <!-- Google Fonts — display=swap ensures text is visible immediately with fallback -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <!-- Preload the hero profile photo for faster LCP -->
+    <link rel="preload" href="/naresh.jpg" as="image" fetchpriority="high" />
   </head>
   <body>
     <div id="root"></div>
